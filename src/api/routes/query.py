@@ -10,10 +10,13 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["query"])
 
 
+def _get_app_state():
+    from src.api.main import app_state
+    return app_state
+
 def _get_engine():
     """延迟初始化 RAG Engine（避免导入时初始化模型）."""
-    from src.api.main import app_state
-    return app_state.get("engine")
+    return _get_app_state().get("engine")
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -33,6 +36,15 @@ async def query(req: QueryRequest, user: dict = Depends(verify_token)):
         top_k=req.top_k,
         user_context=user,
     )
+
+    # 记录用户查询行为
+    app_state = _get_app_state()
+    user_store = app_state.get("user_store")
+    if user_store and user.get("user_id") and user["user_id"] != "dev_user":
+        try:
+            user_store.record_query(user["user_id"], req.question, result.get("intent", ""))
+        except Exception as e:
+            logger.warning(f"Failed to record query: {e}")
 
     return QueryResponse(
         answer=result["answer"],

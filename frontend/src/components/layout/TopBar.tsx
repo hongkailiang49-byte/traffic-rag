@@ -1,6 +1,7 @@
 import { useThemeStore } from '@/stores/themeStore'
 import { useHealthStore } from '@/stores/healthStore'
-import { Moon, Sun, Activity, Menu } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
+import { Moon, Sun, Activity, Menu, LogOut, User } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 interface TopBarProps {
@@ -10,6 +11,7 @@ interface TopBarProps {
 export function TopBar({ onMenuClick }: TopBarProps) {
   const { theme, toggle } = useThemeStore()
   const { status } = useHealthStore()
+  const { user, logout } = useAuthStore()
 
   const statusColor = {
     ok: 'bg-success',
@@ -45,6 +47,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
           <div className={cn('w-2 h-2 rounded-full', statusColor)} />
           <span className="hidden sm:inline">{statusText}</span>
         </div>
+
         <button
           onClick={toggle}
           className="p-2 rounded-md hover:bg-accent transition-colors"
@@ -52,6 +55,24 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         >
           {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
         </button>
+
+        {user && (
+          <div className="flex items-center gap-2 pl-2 border-l border-border">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <span className="hidden md:inline font-medium">{user.name}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-destructive"
+              aria-label="退出登录"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )

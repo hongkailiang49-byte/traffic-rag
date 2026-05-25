@@ -40,6 +40,7 @@ def _init_components():
     from src.data_layer.embedders.bge_embedder import BGEEmbedder
     from src.data_layer.stores.vector_store import MilvusVectorStore
     from src.data_layer.stores.graph_store import Neo4jGraphStore
+    from src.data_layer.stores.user_store import UserStore
     from src.data_layer.pipeline import IndexingPipeline
     from src.retrieval_layer.rerankers.cross_encoder import CrossEncoderReranker
     from src.retrieval_layer.retrievers.regulatory import RegulatoryRetriever
@@ -60,6 +61,8 @@ def _init_components():
     vector_store = MilvusVectorStore()
     vector_store.create_collection(dimension=embedder.dimension)
     graph_store = Neo4jGraphStore()
+    user_store = UserStore()
+    user_store.create_indexes()
 
     # Retrieval Layer
     reranker = CrossEncoderReranker(model_name=settings.reranker_model, device=settings.reranker_device)
@@ -94,6 +97,7 @@ def _init_components():
         "embedder": embedder,
         "vector_store": vector_store,
         "graph_store": graph_store,
+        "user_store": user_store,
         "reranker": reranker,
         "hybrid": hybrid,
         "intent_router": intent_router,
@@ -196,7 +200,8 @@ from src.api.middleware.rate_limit import rate_limit_middleware
 app.middleware("http")(rate_limit_middleware)
 
 # 注册路由
-from src.api.routes import query, ingest, session
+from src.api.routes import query, ingest, session, auth
+app.include_router(auth.router)
 app.include_router(query.router)
 app.include_router(ingest.router)
 app.include_router(session.router)
