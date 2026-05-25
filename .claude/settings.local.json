@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"//wsl.localhost/Ubuntu-Backup/home/lhk/rag_project/frontend/css\" \"//wsl.localhost/Ubuntu-Backup/home/lhk/rag_project/frontend/js\")"
+    ],
+    "additionalDirectories": [
+      "\\\\wsl.localhost\\Ubuntu-Backup\\home\\lhk\\rag_project\\frontend"
+    ]
+  }
+}
