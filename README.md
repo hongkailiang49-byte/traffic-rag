@@ -37,7 +37,7 @@ rag_project/
 │   │   ├── parsers/             #   文档解析器（Markdown / PDF / JSON）
 │   │   ├── chunkers/            #   切片器（层级切片 / 固定窗口）
 │   │   ├── embedders/           #   Embedding 服务（BGE）
-│   │   ├── stores/              #   存储（Milvus 向量库 / Neo4j 图库）
+│   │   ├── stores/              #   存储（Milvus / Neo4j / UserStore）
 │   │   └── pipeline.py          #   离线索引 Pipeline
 │   │
 │   ├── retrieval_layer/         # 检索层
@@ -79,6 +79,10 @@ rag_project/
 │   ├── batch_ingest.py          #   批量数据入库
 │   └── eval_rag.py              #   RAG 效果评测
 │
+├── start.sh                     # 一键启动脚本
+├── stop.sh                      # 一键关闭脚本
+├── status.sh                    # 查看系统状态
+│
 ├── tests/                       # 测试
 │   ├── unit/                    #   单元测试
 │   └── integration/             #   集成测试
@@ -111,11 +115,34 @@ rag_project/
 ### 前置条件
 
 - Python 3.11+
-- Node.js 18+（前端开发）
 - Docker & Docker Compose
+- （可选）Node.js 18+ — 前端开发时需要
 - （可选）NVIDIA GPU — 加速 Embedding 和 Rerank
 
-### 1. 安装依赖
+### 方式一：一键脚本（推荐）
+
+```bash
+cd rag_project
+
+# 1. 配置环境变量
+cp .env.example .env
+vim .env   # 填入 MIMO_API_KEY、NEO4J_PASSWORD、JWT_SECRET_KEY、REDIS_PASSWORD
+
+# 2. 一键启动
+./start.sh
+
+# 3. 一键关闭
+./stop.sh
+
+# 4. 查看状态
+./status.sh
+```
+
+`start.sh` 会自动完成：启动 Docker 容器 → 等待就绪 → 初始化数据库 → 启动 API 服务 → 打印访问地址。
+
+### 方式二：手动启动
+
+#### 1. 安装依赖
 
 ```bash
 cd rag_project
@@ -123,7 +150,7 @@ pip install -e .          # 生产依赖
 pip install -e ".[dev]"   # 开发依赖（含 pytest、ruff）
 ```
 
-### 2. 配置环境变量
+#### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
@@ -139,7 +166,7 @@ vim .env
 | `JWT_SECRET_KEY` | JWT 签名密钥 | 运行 `openssl rand -hex 32` |
 | `REDIS_PASSWORD` | Redis 密码 | 自行设置 |
 
-### 3. 启动基础设施
+#### 3. 启动基础设施
 
 ```bash
 make infra
@@ -153,14 +180,14 @@ docker-compose up -d milvus-standalone neo4j redis
 docker-compose ps
 ```
 
-### 4. 初始化数据库
+#### 4. 初始化数据库
 
 ```bash
 python scripts/init_schema.py
-# 创建 Milvus Collection + Neo4j 约束
+# 创建 Milvus Collection + Neo4j 约束 + 用户表约束
 ```
 
-### 5. 批量入库知识文档
+#### 5. 批量入库知识文档
 
 ```bash
 # 国内网络需要设置 HuggingFace 镜像
@@ -169,7 +196,7 @@ HF_ENDPOINT=https://hf-mirror.com python scripts/batch_ingest.py
 # → 层级切片 → BGE Embedding → 写入 Milvus
 ```
 
-### 6. 启动 API 服务
+#### 6. 启动 API 服务
 
 ```bash
 HF_ENDPOINT=https://hf-mirror.com make run
@@ -177,15 +204,52 @@ HF_ENDPOINT=https://hf-mirror.com make run
 HF_ENDPOINT=https://hf-mirror.com uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
+### 访问地址
+
 启动后访问：
 
 | 地址 | 用途 |
 |------|------|
-| `http://localhost:8000/` | 前端页面（智能问答） |
+| `http://localhost:8000/` | 登录页 / 智能问答 |
 | `http://localhost:8000/emergency` | 应急调度 |
 | `http://localhost:8000/admin` | 数据管理 |
 | `http://localhost:8000/docs` | Swagger API 文档 |
 | `http://localhost:8000/health` | 健康检查 |
+
+---
+
+## 用户系统
+
+系统内置了基于 Neo4j 的用户管理，支持注册、登录和用户行为追踪。
+
+### 登录页面
+
+首次访问 `http://localhost:8000/` 会跳转到登录页面，支持：
+
+- **注册**：输入邮箱、姓名、密码（至少 6 位）创建账号
+- **登录**：使用已注册的邮箱和密码登录
+- **开发模式**：点击"开发模式跳过登录"可快速进入（需先注册一次）
+
+### 用户数据模型
+
+用户信息和查询行为存储在 Neo4j 图数据库中：
+
+```
+(User {email, name, password_hash, clearance_level})
+  -[:ASKED]-> (Query {question, intent, created_at})
+```
+
+每次用户查询都会自动记录 `(User)-[:ASKED]->(Query)` 关系，可用于：
+- 用户查询历史统计
+- 用户行为图分析
+- 基于图的个性化推荐
+
+### 认证机制
+
+- 使用 JWT Bearer Token 认证
+- Token 有效期 8 小时（可通过 `JWT_EXPIRE_MINUTES` 配置）
+- 开发模式（`APP_ENV=development`）下无 Token 的请求自动以 `dev_user` 身份通过
+- 密码使用 bcrypt 哈希存储
 
 ---
 
@@ -228,6 +292,7 @@ npm run build
 
 | 路由 | 功能 | 说明 |
 |------|------|------|
+| `/login` | 登录/注册 | 用户认证，未登录自动跳转 |
 | `/` | 智能问答 | 聊天式交互，右侧参考来源面板 |
 | `/emergency` | 应急调度 | 多轮对话 + 槽位收集进度 + 调度指令生成 |
 | `/admin` | 数据管理 | 触发知识文档入库 |
@@ -237,6 +302,39 @@ npm run build
 ## API 接口
 
 所有接口均需 JWT Bearer Token 认证（开发模式下自动跳过）。
+
+### POST /api/v1/auth/register — 用户注册
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "name": "张三", "password": "123456"}'
+```
+
+### POST /api/v1/auth/login — 用户登录
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "123456"}'
+```
+
+响应（注册/登录相同）：
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "bearer",
+  "user": {"email": "user@example.com", "name": "张三", "clearance_level": 1}
+}
+```
+
+### GET /api/v1/auth/me — 获取当前用户信息
+
+```bash
+curl http://localhost:8000/api/v1/auth/me \
+  -H "Authorization: Bearer <token>"
+```
 
 ### POST /api/v1/query — 统一查询
 
@@ -302,6 +400,7 @@ curl http://localhost:8000/health
 | 前端 | 样式 | Tailwind CSS 4 |
 | 前端 | 状态管理 | Zustand |
 | 数据层 | Embedding | BAAI/bge-large-zh-v1.5 (1024 维) |
+| 数据层 | 用户存储 | Neo4j（用户 + 查询行为图） |
 | 数据层 | 向量库 | Milvus 2.4 (HNSW 索引) |
 | 数据层 | 图数据库 | Neo4j 5.x |
 | 检索层 | Reranker | BAAI/bge-reranker-v2-m3 |
@@ -380,6 +479,7 @@ python scripts/eval_rag.py
 
 ## 安全特性
 
+- **用户认证**：注册/登录 + JWT Bearer Token，密码 bcrypt 哈希存储
 - **JWT 认证**：所有写入接口需 Bearer Token，开发模式自动跳过
 - **输入防御**：AhoCorasick 敏感词过滤 + 正则注入检测 + RBAC 权限校验
 - **输出脱敏**：手机号、身份证号、车牌号、邮箱自动掩码

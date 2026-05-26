@@ -6,8 +6,11 @@ from .base import BaseEmbedder
 class BGEEmbedder(BaseEmbedder):
     """基于 sentence-transformers 的 BGE Embedding."""
 
-    def __init__(self, model_name: str = "BAAI/bge-large-zh-v1.5", device: str = "cpu"):
+    def __init__(self, model_name: str | None = None, device: str = "cpu"):
         from sentence_transformers import SentenceTransformer
+        if model_name is None:
+            from config.settings import settings
+            model_name = settings.embedding_model
         self._model = SentenceTransformer(model_name, device=device)
         self._dimension = self._model.get_sentence_embedding_dimension()
         self._query_prefix = "为这个句子生成表示以用于检索相关文章："

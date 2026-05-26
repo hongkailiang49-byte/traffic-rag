@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { SourcePanel } from '@/components/sources/SourcePanel'
 import { FileText } from 'lucide-react'
@@ -7,6 +7,11 @@ import { useChatStore } from '@/stores/chatStore'
 export function ChatPage() {
   const [sourceOpen, setSourceOpen] = useState(false)
   const lastSources = useChatStore((s) => s.lastSources)
+  const loadSessions = useChatStore((s) => s.loadSessions)
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
 
   return (
     <div className="flex h-full relative">

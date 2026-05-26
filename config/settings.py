@@ -4,6 +4,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PROJECT_ROOT = Path(__file__).parent.parent
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -34,13 +37,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
 
-    # === Embedding ===
-    embedding_model: str = "BAAI/bge-large-zh-v1.5"
+    # === Embedding (local model) ===
+    embedding_model: str = str(PROJECT_ROOT / "models" / "models--BAAI--bge-large-zh-v1.5" / "snapshots" / "79e7739b6ab944e86d6171e44d24c997fc1e0116")
     embedding_device: str = "cpu"
     embedding_dimension: int = 1024
 
-    # === Reranker ===
-    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    # === Reranker (local model) ===
+    reranker_model: str = str(PROJECT_ROOT / "models" / "models--BAAI--bge-reranker-v2-m3" / "snapshots" / "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e")
     reranker_device: str = "cpu"
 
     # === Application ===

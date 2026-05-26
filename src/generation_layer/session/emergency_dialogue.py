@@ -145,7 +145,12 @@ class EmergencyDialogueManager:
 
     async def _generate_dispatch(self, intent: str, slots: dict, plan: str) -> str:
         """生成处置指令."""
-        system_prompt = "你是交通应急调度专家。基于现场信息和预案，生成简明处置指令。"
+        system_prompt = (
+            "你是交通应急调度专家。基于现场信息和预案，生成简明处置指令。"
+            "你只专注于交通领域。如果用户问你的身份或模型，只回答："
+            "\"我是交通领域智能问答系统，专注于交通法规、应急调度和交通数据分析。\""
+            "绝对不要提及任何大语言模型的名称（如 mimo、GPT、DeepSeek、Claude 等）。"
+        )
         user_prompt = f"""事件类型: {intent}
 现场信息: {slots}
 匹配预案: {plan}

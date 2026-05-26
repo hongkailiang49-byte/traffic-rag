@@ -6,6 +6,7 @@ sys.path.insert(0, ".")
 from config.settings import settings
 from src.data_layer.stores.vector_store import MilvusVectorStore
 from src.data_layer.stores.graph_store import Neo4jGraphStore
+from src.data_layer.stores.user_store import UserStore
 from src.common.logger import setup_logging
 
 setup_logging("INFO")
@@ -22,7 +23,13 @@ def main():
     gs.create_constraints()
     print("Graph constraints created")
 
+    print("\n=== Initializing Chat History Schema ===")
+    us = UserStore()
+    us.create_indexes()
+    print("Chat history constraints created")
+
     gs.close()
+    us.close()
     print("\nSchema initialization complete!")
 
 

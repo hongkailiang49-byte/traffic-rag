@@ -55,7 +55,7 @@ export const useEmergencyStore = create<EmergencyState>((set, get) => ({
         phase: res.phase as EmergencyPhase,
         collectedSlots: res.collected_slots,
         missingSlots: res.missing_slots,
-        dispatchOrder: isDispatched ? res.response : '',
+        dispatchOrder: res.phase === 'dispatched' ? res.response : '',
         isLoading: false,
       }))
     } catch (err: unknown) {

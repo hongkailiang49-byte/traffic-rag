@@ -51,23 +51,6 @@ services:
       timeout: 3s
       retries: 5
 
-  traffic-rag-api:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file: .env
-    depends_on:
-      milvus-standalone:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./data:/app/data
-      - ./config:/app/config
-    restart: unless-stopped
-
 volumes:
   milvus_data:
   neo4j_data:

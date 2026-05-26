@@ -27,7 +27,7 @@ class UserStore:
             self._driver = None
 
     def create_indexes(self) -> None:
-        """创建用户唯一性约束."""
+        """创建用户和会话唯一性约束."""
         driver = self._get_driver()
         with driver.session() as session:
             try:
@@ -35,6 +35,11 @@ class UserStore:
                 logger.info("User constraint created")
             except Exception as e:
                 logger.warning(f"User constraint: {e}")
+            try:
+                session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (s:Session) REQUIRE s.session_id IS UNIQUE")
+                logger.info("Session constraint created")
+            except Exception as e:
+                logger.warning(f"Session constraint: {e}")
 
     def create_user(self, email: str, name: str, password_hash: str, clearance_level: int = 1) -> dict:
         """创建用户，返回用户信息."""
@@ -117,3 +122,88 @@ class UserStore:
                 "total_queries": record["total_queries"] if record else 0,
                 "intent_diversity": record["intent_diversity"] if record else 0,
             }
+
+    # ---- 聊天记录持久化 ----
+
+    def create_chat_session(self, email: str, session_id: str, intent: str = "") -> None:
+        """创建会话节点并关联用户."""
+        driver = self._get_driver()
+        now = datetime.now(timezone.utc).isoformat()
+        with driver.session() as session:
+            session.run(
+                """
+                MATCH (u:User {email: $email})
+                MERGE (s:Session {session_id: $session_id})
+                ON CREATE SET s.created_at = $created_at, s.intent = $intent
+                MERGE (u)-[:HAS_SESSION]->(s)
+                """,
+                email=email, session_id=session_id, created_at=now, intent=intent,
+            )
+
+    def add_chat_message(self, session_id: str, role: str, content: str, seq: int) -> None:
+        """向会话添加一条消息."""
+        driver = self._get_driver()
+        now = datetime.now(timezone.utc).isoformat()
+        with driver.session() as session:
+            session.run(
+                """
+                MATCH (s:Session {session_id: $session_id})
+                CREATE (m:ChatMessage {
+                    role: $role,
+                    content: $content,
+                    seq: $seq,
+                    created_at: $created_at
+                })
+                CREATE (s)-[:HAS_MESSAGE]->(m)
+                """,
+                session_id=session_id, role=role, content=content, seq=seq, created_at=now,
+            )
+
+    def get_chat_history(self, session_id: str, limit: int = 50) -> list[dict]:
+        """获取会话的聊天记录."""
+        driver = self._get_driver()
+        with driver.session() as session:
+            result = session.run(
+                """
+                MATCH (s:Session {session_id: $session_id})-[:HAS_MESSAGE]->(m:ChatMessage)
+                RETURN m.role AS role, m.content AS content, m.seq AS seq, m.created_at AS created_at
+                ORDER BY m.seq ASC
+                LIMIT $limit
+                """,
+                session_id=session_id, limit=limit,
+            )
+            return [dict(r) for r in result]
+
+    def get_user_sessions(self, email: str, limit: int = 20) -> list[dict]:
+        """获取用户的所有会话."""
+        driver = self._get_driver()
+        with driver.session() as session:
+            result = session.run(
+                """
+                MATCH (u:User {email: $email})-[:HAS_SESSION]->(s:Session)
+                OPTIONAL MATCH (s)-[:HAS_MESSAGE]->(m:ChatMessage)
+                WITH s, m ORDER BY m.seq ASC
+                RETURN s.session_id AS session_id,
+                       s.intent AS intent,
+                       s.created_at AS created_at,
+                       count(m) AS message_count,
+                       collect(m.content)[0] AS first_message
+                ORDER BY s.created_at DESC
+                LIMIT $limit
+                """,
+                email=email, limit=limit,
+            )
+            return [dict(r) for r in result]
+
+    def delete_session(self, session_id: str) -> None:
+        """删除会话及其所有消息."""
+        driver = self._get_driver()
+        with driver.session() as session:
+            session.run(
+                """
+                MATCH (s:Session {session_id: $session_id})
+                OPTIONAL MATCH (s)-[:HAS_MESSAGE]->(m:ChatMessage)
+                DETACH DELETE m, s
+                """,
+                session_id=session_id,
+            )

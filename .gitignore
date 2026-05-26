@@ -27,3 +27,13 @@ Thumbs.db
 # Virtual env
 venv/
 .venv/
+
+# Dependencies
+node_modules/
+
+# Model weights (loaded from local cache)
+models/
+
+# Runtime
+.rag_api.pid
+.rag_api.log

@@ -116,6 +116,7 @@ def _init_components():
             prompt_manager=prompt_manager,
             citation_manager=citation_manager,
             session_store=session_store,
+            user_store=user_store,
             input_guard=input_guard,
             output_guard=output_guard,
             dialogue_mgr=dialogue_mgr,
@@ -174,9 +175,26 @@ class RAGEngine:
         if session_id:
             self.session_store.add_message(session_id, "user", question)
             self.session_store.add_message(session_id, "assistant", answer)
+            # 持久化到 Neo4j
+            self._persist_to_neo4j(session_id, question, answer, intent, user_context)
 
         sources = [{"content": r.content[:200], "score": r.score, "source": r.source} for r in retrieval_results]
         return {"answer": answer, "intent": intent, "sources": sources}
+
+    def _persist_to_neo4j(self, session_id: str, question: str, answer: str, intent: str, user_context: dict) -> None:
+        """将聊天记录持久化到 Neo4j."""
+        try:
+            email = user_context.get("user_id")
+            if not email or email == "dev_user":
+                return
+            history = self.session_store.get_history(session_id, limit=1000)
+            seq = len(history) - 1  # 当前 answer 的 seq
+            if seq <= 1:
+                self.user_store.create_chat_session(email, session_id, intent)
+            self.user_store.add_chat_message(session_id, "user", question, seq - 1)
+            self.user_store.add_chat_message(session_id, "assistant", answer, seq)
+        except Exception as e:
+            logger.warning(f"Failed to persist chat to Neo4j: {e}")
 
 
 app = FastAPI(

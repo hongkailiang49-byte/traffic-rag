@@ -50,3 +50,18 @@ export interface HealthResponse {
   status: string
   components: Record<string, string>
 }
+
+export interface SessionOut {
+  session_id: string
+  intent: string
+  created_at: string
+  message_count: number
+  first_message: string
+}
+
+export interface MessageOut {
+  role: string
+  content: string
+  seq: number
+  created_at: string
+}
